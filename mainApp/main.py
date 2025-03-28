@@ -8,25 +8,21 @@ from Crypto.Util.Padding import pad, unpad
 import getpass
 import psutil
 import os
+import base64
 import hashlib
-
-
-def getUsername():
-    username = getpass.getuser()
-    return username
-
+from PyPDF2 import PdfReader, PdfWriter
+from PyPDF2.generic import NameObject, createStringObject
 
 def derive_key_from_pin(pin):
-    # Generuje klucz AES-256 na podstawie PIN-u
+    """Generuje klucz AES-256 na podstawie PIN-u."""
     return hashlib.sha256(pin.encode()).digest()
 
 
 def decrypt_private_key(encrypted_data, pin):
     """Deszyfruje klucz prywatny AES-256 za pomocą podanego PIN-u."""
     key = derive_key_from_pin(pin)
-    iv = encrypted_data[:16]
-    encrypted_key = encrypted_data[16:]
-    cipher = AES.new(key, AES.MODE_CBC, iv)
+    encrypted_key = encrypted_data
+    cipher = AES.new(key, AES.MODE_ECB)
     try:
         return RSA.import_key(unpad(cipher.decrypt(encrypted_key), AES.block_size))
     except (ValueError, KeyError):
@@ -34,7 +30,7 @@ def decrypt_private_key(encrypted_data, pin):
 
 
 def find_usb_private_key():
-    # Szuka zaszyfrowanego pliku klucza na pendrive
+    """Szuka zaszyfrowanego pliku klucza na pendrive."""
     for partition in psutil.disk_partitions():
         if 'removable' in partition.opts:
             usb_path = partition.mountpoint
@@ -45,7 +41,7 @@ def find_usb_private_key():
 
 
 def check_usb_status():
-    # Sprawdza, czy pendrive jest podłączony
+    """Sprawdza, czy pendrive jest podłączony."""
     for partition in psutil.disk_partitions():
         if 'removable' in partition.opts:
             return f"Pendrive wykryty: {partition.mountpoint}"
@@ -53,15 +49,25 @@ def check_usb_status():
 
 
 def update_usb_status():
-    # Aktualizuje status pendrive'a w GUI
+    """Aktualizuje status pendrive'a w GUI."""
     usb_status_label.config(text=check_usb_status())
-    # Odświeżanie co 2 sekundy
-    root.after(2000, update_usb_status)
+    root.after(2000, update_usb_status)  # Odświeżanie co 2 sekundy
 
 
 def calculateSHA256(file_path):
-    with open(file_path, 'rb') as file:
+    # with open(file_path, 'rb') as file:
+        # file_data = file.read()
+    ## open with pdf reader and than save it
+    reader = PdfReader(file_path)
+    writer = PdfWriter()
+
+    ## save the file
+    for page in reader.pages:
+        writer.add_page(page)
+    writer.write("temp_sign.pdf")
+    with open("temp_sign.pdf", 'rb') as file:
         file_data = file.read()
+
     sha256_hash = SHA256.new(file_data)
     return sha256_hash
 
@@ -72,9 +78,26 @@ def createSignature(private_key, file_hash):
     return signature
 
 
-def saveSignature(signature, signature_path):
-    with open(signature_path, 'wb') as file:
-        file.write(signature)
+def embedSignatureInPDF(pdf_path, signature):
+    reader = PdfReader(pdf_path)
+    writer = PdfWriter()
+
+    for page in reader.pages:
+        writer.add_page(page)
+
+    metadata = reader.metadata or {}
+
+    # Create a PdfObject for the metadata key
+    metadata[NameObject("/Signature")] = createStringObject(base64.b64encode(signature).decode())
+
+    writer.add_metadata(metadata)
+
+    signed_pdf_path = pdf_path.replace(".pdf", "_signed.pdf")
+
+    with open(signed_pdf_path, "wb") as signed_pdf:
+        writer.write(signed_pdf)
+
+    return signed_pdf_path
 
 
 def signFile(file_path):
@@ -98,42 +121,61 @@ def signFile(file_path):
 
     file_hash = calculateSHA256(file_path)
     signature = createSignature(private_key, file_hash)
-
-    file_path_without_extension = file_path.rsplit('.', 1)[0] if '.' in file_path else file_path
-    file_name = file_path_without_extension + '.p7s'
-    saveSignature(signature, file_name)
-    result_label.config(text="Plik został podpisany.")
-
-
-def loadSignature(signature_path):
-    with open(signature_path, 'rb') as file:
-        signature = file.read()
-    return signature
+    signed_pdf_path = embedSignatureInPDF(file_path, signature)
+    result_label.config(text=f"Plik został podpisany: {signed_pdf_path}")
 
 
 def verifyFile():
     selected_file_path = filedialog.askopenfilename(title="Wybierz plik do weryfikacji")
-    signature_path = filedialog.askopenfilename(title="Wybierz plik podpisu (.p7s)")
     public_key_path = filedialog.askopenfilename(title="Wybierz plik klucza publicznego")
 
-    if not selected_file_path or not signature_path or not public_key_path:
+    if not selected_file_path or not public_key_path:
         result_label.config(text="Weryfikacja anulowana - nie wybrano wszystkich plików.")
         return
 
-    verifySignature(signature_path, selected_file_path, public_key_path)
+    verifySignature(selected_file_path, public_key_path)
 
 
-def verifySignature(signature_path, selected_file_path, public_key_path):
-    signature = loadSignature(signature_path)
-    file_hash = calculateSHA256(selected_file_path)
-    public_key = RSA.import_key(open(public_key_path).read())
-    verifier = pkcs1_15.new(public_key)
+def verifySignature(selected_file_path, public_key_path):
     try:
-        verifier.verify(file_hash, signature)
-        result_label.config(text="Podpis jest prawidłowy.")
-        return True
-    except (ValueError, TypeError):
-        result_label.config(text="Podpis jest nieprawidłowy.")
+        # Wczytanie pliku PDF
+        reader = PdfReader(selected_file_path)
+        metadata = reader.metadata or {}
+
+        writer = PdfWriter()
+
+        for page in reader.pages:
+            writer.add_page(page)
+
+        # Odczytanie podpisu z metadanych
+        signature_b64 = metadata.get("/Signature", None)
+        if not signature_b64:
+            result_label.config(text="Brak podpisu w pliku PDF.")
+            return False
+
+        signature = base64.b64decode(signature_b64)
+
+        writer.metadata = metadata
+        writer.write("temp.pdf")
+
+        # Obliczenie hash'a pliku
+        file_hash = calculateSHA256("temp.pdf")
+
+        # Zaimportowanie klucza publicznego
+        public_key = RSA.import_key(open(public_key_path).read())
+        verifier = pkcs1_15.new(public_key)
+
+        # Weryfikacja podpisu
+        try:
+            verifier.verify(file_hash, signature)
+            result_label.config(text="Podpis jest prawidłowy.")
+            return True
+        except (ValueError, TypeError):
+            result_label.config(text="Podpis jest nieprawidłowy.")
+            return False
+
+    except Exception as e:
+        result_label.config(text=f"Błąd weryfikacji: {str(e)}")
         return False
 
 
