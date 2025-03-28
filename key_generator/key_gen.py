@@ -29,7 +29,7 @@ def on_usb_connected(device_id, device_info):
 
 def save_key_to_file(key, file_path):
     with open(file_path, 'wb') as f:
-        f.write(key.export_key(format='PEM'))
+        f.write(key)
 
 
 def show_popup(message):
@@ -60,5 +60,5 @@ if not pin:
 
 encrypted_key = encrypt_private_key(keys.export_key(), pin)
 print(encrypted_key)
-
+save_key_to_file(encrypted_key, "private_encrypted.pem")
 monitor.stop_monitoring()
