@@ -104,6 +104,7 @@ if not pin:
 encrypted_key = encrypt_private_key(keys.export_key(), pin)
 print(encrypted_key)
 save_key_to_file(encrypted_key, "private_encrypted.pem")
+save_key_to_file(keys.publickey().export_key(), "public.pem")
 
 save_to_usb = messagebox.askyesno("Zapisz na USB", "Czy chcesz zapisać zaszyfrowany klucz na urządzeniu USB?")
 if save_to_usb:
