@@ -1,3 +1,10 @@
+"""
+@file key_gen.py
+@brief Skrypt do generowania par kluczy RSA, szyfrowania kluczy prywatnych i zapisywania ich do plików lub urządzeń USB.
+@details Skrypt wykorzystuje bibliotekę PyCryptodome do operacji kryptograficznych oraz Tkinter do interakcji z użytkownikiem.
+         Zawiera funkcjonalność monitorowania urządzeń USB i zapisywania na nich zaszyfrowanych kluczy.
+"""
+
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256
@@ -12,27 +19,48 @@ tk = tkinter.Tk()
 
 tk.withdraw()
 
+"""
+@brief Generuje parę kluczy RSA.
+@return Obiekt klucza RSA zawierający klucze prywatny i publiczny.
+"""
 def generate_rsa_key_pair():
     keys = RSA.generate(4096)
     return keys
 
-
+"""
+@brief Szyfruje klucz prywatny za pomocą PIN-u.
+@param private_key Klucz prywatny do zaszyfrowania.
+@param pin PIN używany do szyfrowania.
+@return Zaszyfrowany klucz prywatny w postaci bajtów.
+"""
 def encrypt_private_key(private_key, pin):
     pin = SHA256.new(str(pin).encode()).digest()
     aes = AES.new(pin, AES.MODE_ECB)
     private_key = pad(private_key, AES.block_size)
     cipher_text = aes.encrypt(private_key)
     return cipher_text
-    
 
+"""
+@brief Funkcja wywoływana po podłączeniu urządzenia USB.
+@param device_id ID podłączonego urządzenia USB.
+@param device_info Informacje o podłączonym urządzeniu USB.
+"""
 def on_usb_connected(device_id, device_info):
     print(f"Podłączono urządzenie USB: {device_id} - {device_info}")
 
-
+"""
+@brief Zapisuje klucz do określonego pliku.
+@param key Klucz do zapisania.
+@param file_path Ścieżka do pliku, w którym klucz zostanie zapisany.
+"""
 def save_key_to_file(key, file_path):
     with open(file_path, 'wb') as f:
         f.write(key)
 
+"""
+@brief Pobiera listę podłączonych urządzeń USB.
+@return Lista ścieżek do podłączonych urządzeń USB.
+"""
 def get_usb_devices():
     devices = []
     if os.name == 'nt':  # Windows
@@ -46,7 +74,10 @@ def get_usb_devices():
             devices = [os.path.join(media_path, d) for d in os.listdir(media_path) if os.path.isdir(os.path.join(media_path, d))]
     return devices
 
-
+"""
+@brief Zapisuje klucz na podłączonym urządzeniu USB.
+@param key Klucz do zapisania.
+"""
 def save_key_to_usb(key):
     devices = get_usb_devices()
     if not devices:
@@ -58,7 +89,10 @@ def save_key_to_usb(key):
             f.write(key)
         print(f"Zapisano klucz na {device}")
 
-
+"""
+@brief Zapisuje klucz na urządzeniu USB wybranym za pomocą interfejsu użytkownika.
+@param key Klucz do zapisania.
+"""
 def save_key_to_usb_with_ui(key):
     devices = get_usb_devices()
     if not devices:
@@ -74,7 +108,28 @@ def save_key_to_usb_with_ui(key):
         f.write(key)
     messagebox.showinfo("Sukces", f"Zapisano klucz na {key_path}")
 
+"""
+@brief Funkcja pomocniczas do odszyfrowania klucza prywatnego.
+@param encrypted_key_location Ścieżka do pliku z zaszyfrowanym kluczem.
+@param pin PIN używany do odszyfrowania.
+@return Odszyfrowany klucz prywatny.
+"""
+def decrypt_private_key(encrypted_key_location, pin):
+    with open(encrypted_key_location, 'rb') as f:
+        encrypted_key = f.read()
+    pin = SHA256.new(str(pin).encode()).digest()
+    aes = AES.new(pin, AES.MODE_ECB)
+    decrypted_key = aes.decrypt(encrypted_key)
+    return decrypted_key
 
+
+
+
+"""
+@brief Wyświetla okno popup z wiadomością.
+@param message Wiadomość do wyświetlenia w oknie popup.
+@return Obiekt okna popup.
+"""
 def show_popup(message):
     popup = tkinter.Toplevel()
     popup.title("Generowanie kluczy RSA")
@@ -83,13 +138,11 @@ def show_popup(message):
     popup.update()
     return popup
 
-
 monitor = USBMonitor()
 
 monitor.start_monitoring(on_connect=on_usb_connected)
 
-
-
+print(decrypt_private_key("private_encrypted.pem", "2137"))
 
 print("Generowanie kluczy RSA")
 popup = show_popup("Generowanie kluczy RSA")
