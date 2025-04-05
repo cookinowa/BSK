@@ -12,13 +12,19 @@ import hashlib
 from PyPDF2 import PdfReader, PdfWriter
 from PyPDF2.generic import NameObject, createStringObject
 
+
+## Generuje klucz AES-256 na podstawie PIN-u.
+# @param pin PIN użytkownika jako string
+# @return Klucz AES-256 jako bytes
 def derive_key_from_pin(pin):
-    """Generuje klucz AES-256 na podstawie PIN-u."""
     return hashlib.sha256(pin.encode()).digest()
 
 
+## Deszyfruje klucz prywatny RSA z użyciem AES-256 za pomocą podanego PIN-u.
+# @param encrypted_data Zaszyfrowane dane klucza
+# @param pin PIN do odszyfrowania
+# @return Klucz prywatny RSA lub None jeśli błąd
 def decrypt_private_key(encrypted_data, pin):
-    """Deszyfruje klucz prywatny AES-256 za pomocą podanego PIN-u."""
     key = derive_key_from_pin(pin)
     encrypted_key = encrypted_data
     cipher = AES.new(key, AES.MODE_ECB)
@@ -28,8 +34,9 @@ def decrypt_private_key(encrypted_data, pin):
         return None
 
 
+## Szuka zaszyfrowanego klucza prywatnego na pendrive.
+# @return Ścieżka do pliku klucza lub None
 def find_usb_private_key():
-    """Szuka zaszyfrowanego pliku klucza na pendrive."""
     for partition in psutil.disk_partitions():
         if 'removable' in partition.opts:
             usb_path = partition.mountpoint
@@ -39,28 +46,29 @@ def find_usb_private_key():
     return None
 
 
+## Sprawdza, czy pendrive jest podłączony.
+# @return Informacja o statusie pendrive jako string
 def check_usb_status():
-    """Sprawdza, czy pendrive jest podłączony."""
     for partition in psutil.disk_partitions():
         if 'removable' in partition.opts:
             return f"Pendrive wykryty: {partition.mountpoint}"
     return "Brak wykrytego pendrive."
 
 
+
+## Aktualizuje etykietę statusu USB w GUI i odświeża go co 2 sekundy.
 def update_usb_status():
-    """Aktualizuje status pendrive'a w GUI."""
     usb_status_label.config(text=check_usb_status())
-    root.after(2000, update_usb_status)  # Odświeżanie co 2 sekundy
+    root.after(2000, update_usb_status)
 
 
+## Oblicza skrót SHA256 pliku PDF.
+# @param file_path Ścieżka do pliku PDF
+# @return Obiekt SHA256 z hashem pliku
 def calculateSHA256(file_path):
-    # with open(file_path, 'rb') as file:
-        # file_data = file.read()
-    ## open with pdf reader and than save it
     reader = PdfReader(file_path)
     writer = PdfWriter()
 
-    ## save the file
     for page in reader.pages:
         writer.add_page(page)
     writer.write("temp_sign.pdf")
@@ -71,13 +79,22 @@ def calculateSHA256(file_path):
     return sha256_hash
 
 
+## Tworzy podpis cyfrowy za pomocą klucza prywatnego.
+# @param private_key Klucz RSA
+# @param file_hash Obiekt SHA256
+# @return Podpis cyfrowy jako bytes
 def createSignature(private_key, file_hash):
     signer = pkcs1_15.new(private_key)
     signature = signer.sign(file_hash)
     return signature
 
 
+## Osadza podpis cyfrowy w metadanych pliku PDF.
+# @param pdf_path Ścieżka do pliku PDF
+# @param signature Podpis cyfrowy
+# @return Ścieżka do nowego pliku PDF z podpisem
 def embedSignatureInPDF(pdf_path, signature):
+
     reader = PdfReader(pdf_path)
     writer = PdfWriter()
 
@@ -85,10 +102,7 @@ def embedSignatureInPDF(pdf_path, signature):
         writer.add_page(page)
 
     metadata = reader.metadata or {}
-
-    # Create a PdfObject for the metadata key
     metadata[NameObject("/Signature")] = createStringObject(base64.b64encode(signature).decode())
-
     writer.add_metadata(metadata)
 
     signed_pdf_path = pdf_path.replace(".pdf", "_signed.pdf")
@@ -99,6 +113,8 @@ def embedSignatureInPDF(pdf_path, signature):
     return signed_pdf_path
 
 
+## Podpisuje plik PDF za pomocą klucza RSA z pendrive.
+# @param file_path Ścieżka do pliku PDF
 def signFile(file_path):
     key_path = find_usb_private_key()
     if not key_path:
@@ -124,6 +140,7 @@ def signFile(file_path):
     result_label.config(text=f"Plik został podpisany: {signed_pdf_path}")
 
 
+## Rozpoczyna proces weryfikacji podpisu cyfrowego.
 def verifyFile():
     selected_file_path = filedialog.askopenfilename(title="Wybierz plik do weryfikacji")
     public_key_path = filedialog.askopenfilename(title="Wybierz plik klucza publicznego")
@@ -135,9 +152,12 @@ def verifyFile():
     verifySignature(selected_file_path, public_key_path)
 
 
+## Weryfikuje podpis cyfrowy w pliku PDF.
+# @param selected_file_path Ścieżka do pliku PDF
+# @param public_key_path Ścieżka do klucza publicznego
+# @return True jeśli podpis poprawny, False w przeciwnym wypadku
 def verifySignature(selected_file_path, public_key_path):
     try:
-        # Wczytanie pliku PDF
         reader = PdfReader(selected_file_path)
         metadata = reader.metadata or {}
 
@@ -146,7 +166,6 @@ def verifySignature(selected_file_path, public_key_path):
         for page in reader.pages:
             writer.add_page(page)
 
-        # Odczytanie podpisu z metadanych
         signature_b64 = metadata.get("/Signature", None)
         if not signature_b64:
             result_label.config(text="Brak podpisu w pliku PDF.")
@@ -157,14 +176,11 @@ def verifySignature(selected_file_path, public_key_path):
         writer.metadata = metadata
         writer.write("temp.pdf")
 
-        # Obliczenie hash'a pliku
         file_hash = calculateSHA256("temp.pdf")
 
-        # Zaimportowanie klucza publicznego
         public_key = RSA.import_key(open(public_key_path).read())
         verifier = pkcs1_15.new(public_key)
 
-        # Weryfikacja podpisu
         try:
             verifier.verify(file_hash, signature)
             result_label.config(text="Podpis jest prawidłowy.")
@@ -196,8 +212,6 @@ mainframe.pack(expand=True, fill="both")
 mode_label = ttk.Label(mainframe, text="Wybierz akcję:", anchor="center")
 mode_label.pack(expand=True, fill="x")
 
-
-
 sign_mode_button = ttk.Button(mainframe, text="Podpisz plik", command=lambda: signFile(filedialog.askopenfilename()))
 sign_mode_button.pack(expand=True, fill="x")
 
@@ -210,6 +224,6 @@ usb_status_label.pack(expand=True, fill="x")
 result_label = ttk.Label(mainframe, text="", anchor="center")
 result_label.pack(expand=True, fill="x")
 
-update_usb_status()  # Uruchomienie cyklicznego sprawdzania pendrive'a
+update_usb_status()
 
 root.mainloop()
