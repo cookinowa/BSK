@@ -4,8 +4,7 @@ from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto.Signature import pkcs1_15
 from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad, unpad
-import getpass
+from Crypto.Util.Padding import unpad
 import psutil
 import os
 import base64
@@ -182,20 +181,22 @@ def verifySignature(selected_file_path, public_key_path):
 # GUI
 root = tk.Tk()
 root.title("Security of Computer Systems")
-root.geometry("1200x600")
+root.geometry("600x400")
 
 style = ttk.Style()
-style.configure('TFrame', background='gray')
-style.configure('TLabel', background='gray')
+style.configure("TFrame", background="gray")
+style.configure("TLabel", background="gray", font=("Segoe UI", 10))
+style.configure("TButton", font=("Segoe UI", 10), padding=6)
+style.configure("TLabelframe", background="#gray", font=("Segoe UI", 11, "bold"))
+style.configure("TLabelframe.Label", background="#f5f5f5")
 
 mainframe = ttk.Frame(root, padding="40")
 mainframe.pack(expand=True, fill="both")
 
-mode_label = ttk.Label(mainframe, text="Wybierz akcję:")
+mode_label = ttk.Label(mainframe, text="Wybierz akcję:", anchor="center")
 mode_label.pack(expand=True, fill="x")
 
-usb_status_label = ttk.Label(mainframe, text=check_usb_status())
-usb_status_label.pack(expand=True, fill="x")
+
 
 sign_mode_button = ttk.Button(mainframe, text="Podpisz plik", command=lambda: signFile(filedialog.askopenfilename()))
 sign_mode_button.pack(expand=True, fill="x")
@@ -203,7 +204,10 @@ sign_mode_button.pack(expand=True, fill="x")
 verify_mode_button = ttk.Button(mainframe, text="Zweryfikuj podpis", command=verifyFile)
 verify_mode_button.pack(expand=True, fill="x")
 
-result_label = ttk.Label(mainframe, text="")
+usb_status_label = ttk.Label(mainframe, text=check_usb_status(), anchor="center")
+usb_status_label.pack(expand=True, fill="x")
+
+result_label = ttk.Label(mainframe, text="", anchor="center")
 result_label.pack(expand=True, fill="x")
 
 update_usb_status()  # Uruchomienie cyklicznego sprawdzania pendrive'a
