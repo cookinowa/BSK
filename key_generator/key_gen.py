@@ -44,9 +44,8 @@ def on_usb_connected(device_id, device_info):
 
 
 ## Zapisuje klucz do określonego pliku.
-# @ param key Klucz do zapisania.
+# @param key Klucz do zapisania.
 # @param file_path Ścieżka do pliku, w którym klucz zostanie zapisany.
-
 def save_key_to_file(key, file_path):
     with open(file_path, 'wb') as f:
         f.write(key)
