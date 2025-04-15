@@ -129,7 +129,7 @@ monitor = USBMonitor()
 
 monitor.start_monitoring(on_connect=on_usb_connected)
 
-print(decrypt_private_key("private_encrypted.pem", "2137"))
+# print(decrypt_private_key("private_encrypted.pem", "2137"))
 
 print("Generowanie kluczy RSA")
 popup = show_popup("Generowanie kluczy RSA")
