@@ -93,7 +93,7 @@ def save_key_to_usb_with_ui(key):
     if not device:
         messagebox.showerror("Błąd", "Nie wybrano urządzenia USB.")
         return
-    filename = "klucz_prywatny_zaszyfrowany.pem"
+    filename = "private_encrypted.pem"
     key_path = os.path.join(device, filename)
     with open(key_path, 'wb') as f:
         f.write(key)
